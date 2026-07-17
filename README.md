@@ -7,6 +7,13 @@ The Air Raid Alarm Prediction System is a full-stack machine learning applicatio
 
 This repository contains the production backend, preprocessing and modeling code, saved model artifacts, and a Next.js frontend for interactive visualization.
 
+
+## My role (this fork)
+I owned the Telegram data track and baseline modeling: a Telethon pipeline
+that collected 385K+ messages (4 channels, 2022–2026), 20 hourly NLP features
+(Pymorphy3, TF-IDF, CountVectorizer), baseline models (Linear Regression F1 0.67,
+tuned Decision Tree F1 0.68, TimeSeriesSplit CV), the UkraineAlarm API v3 client,
+and the Next.js forecast map frontend.
 ---
 
 ## Repository Structure
