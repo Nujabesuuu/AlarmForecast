@@ -148,6 +148,11 @@ const generateMockPredictions = (baseDate) => {
  *   рівно 24 значення починаючи з поточної години.
  * Значення — float 0.0–1.0 (ймовірність тривоги).
  */
+// Live Flask API, e.g. http://127.0.0.1:5000/forecast (set in .env.local).
+// Without it the map shows a real forecast snapshot shipped in /public.
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const SNAPSHOT_URL = '/sample-forecast.json';
+
 const fetchPredictions = async (url, slots) => {
   const res = await fetch(url, {
     cache: 'no-store'
@@ -177,7 +182,7 @@ const fetchPredictions = async (url, slots) => {
     });
   });
 
-  return converted;
+  return { regions: converted, generatedAt: json.last_prediction_time ?? null };
 };
 
 // ─── Sparkline SVG component ──────────────────────────────────────────────────
@@ -261,6 +266,7 @@ export default function TacticalDashboard() {
   const [selectedRegionName, setSelectedRegionName] = useState(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dataSource, setDataSource] = useState({ kind: 'live', generatedAt: null });
   const [showStats, setShowStats] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -285,13 +291,21 @@ export default function TacticalDashboard() {
     setIsRefreshing(true);
 
     try {
-      // Викликаємо твій реальний Flask API
-      const realData = await fetchPredictions("http://127.0.0.1:5000/forecast", timeSlots);
-      setPredictionData(realData);
+      if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set');
+      const { regions } = await fetchPredictions(API_URL, timeSlots);
+      setPredictionData(regions);
+      setDataSource({ kind: 'live', generatedAt: null });
     } catch (error) {
-      console.error("Не вдалося отримати дані з API. Вмикаю демо-режим.", error);
-      // if flask is down turn on demo
-      setPredictionData(generateMockPredictions(currentTime));
+      console.warn("Live API недоступний, показую знімок прогнозу.", error);
+      try {
+        const { regions, generatedAt } = await fetchPredictions(SNAPSHOT_URL, timeSlots);
+        setPredictionData(regions);
+        setDataSource({ kind: 'snapshot', generatedAt });
+      } catch (snapshotError) {
+        console.error("Знімок недоступний, вмикаю демо-режим.", snapshotError);
+        setPredictionData(generateMockPredictions(currentTime));
+        setDataSource({ kind: 'mock', generatedAt: null });
+      }
     } finally {
       setIsRefreshing(false);
     }
@@ -445,7 +459,17 @@ export default function TacticalDashboard() {
           <div className="min-w-0">
             <h1 className="text-sm md:text-lg font-bold tracking-tight text-white truncate">Система Прогнозування тривог</h1>
             <div className="flex flex-wrap items-center gap-2 mt-0.5">
-              <span className="text-[10px] text-emerald-400 font-mono bg-emerald-400/10 px-2 py-0.5 rounded-md border border-emerald-400/20">Модель Активна</span>
+              {dataSource.kind === 'live' && (
+                <span className="text-[10px] text-emerald-400 font-mono bg-emerald-400/10 px-2 py-0.5 rounded-md border border-emerald-400/20">Модель Активна</span>
+              )}
+              {dataSource.kind === 'snapshot' && (
+                <span className="text-[10px] text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                  Знімок прогнозу{dataSource.generatedAt ? ` · ${new Date(dataSource.generatedAt.replace(' ', 'T')).toLocaleDateString('uk-UA')}` : ''}
+                </span>
+              )}
+              {dataSource.kind === 'mock' && (
+                <span className="text-[10px] text-slate-400 font-mono bg-slate-400/10 px-2 py-0.5 rounded-md border border-slate-400/20">Демо-дані</span>
+              )}
               <span className="text-[10px] text-slate-400 font-mono hidden sm:block">Тривог (&gt;50%): {alarmsCount}</span>
             </div>
           </div>
