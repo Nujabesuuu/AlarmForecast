@@ -14,7 +14,7 @@
 
 <img src="docs/media/preview.gif" alt="The forecast map lighting up region by region, then scrubbing through 24 hours" width="100%">
 
-[**Watch the demo**](docs/media/demo.mp4) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Run locally](#getting-started)
+[**Live demo**](https://alarm-forecast.vercel.app) · [Watch the video](docs/media/demo.mp4) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Run locally](#getting-started)
 
 </div>
 
@@ -30,6 +30,9 @@ any region.
 - **4 data sources**, including **385,114** Telegram messages collected over four years
 - **ROC-AUC 0.91 · F1 0.73** on held-out data under time-series cross-validation
 - **Interactive map** with a 24-hour timeline, regional risk stats and hourly breakdowns
+
+> **Live demo:** [alarm-forecast.vercel.app](https://alarm-forecast.vercel.app) shows a snapshot of real
+> model output — the forecast made on 15 April 2026 at 19:20, covering 19:00 that day to 18:00 the next.
 
 ## Screenshots
 
