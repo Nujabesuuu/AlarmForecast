@@ -153,7 +153,17 @@ const generateMockPredictions = (baseDate) => {
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const SNAPSHOT_URL = '/sample-forecast.json';
 
-const fetchPredictions = async (url, slots) => {
+const ALL_HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
+
+// "2026-04-15 19:20:14.70" -> local Date at the start of that hour.
+// Parsed by hand: Safari rejects microsecond timestamps in new Date().
+const parseForecastHour = (stamp) => {
+  const m = stamp && /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2})/.exec(stamp);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4]) : null;
+};
+const fmtDay = (d) => d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
+
+const fetchPredictions = async (url) => {
   const res = await fetch(url, {
     cache: 'no-store'
   });
@@ -177,8 +187,8 @@ const fetchPredictions = async (url, slots) => {
 
   ALWAYS_RED_REGIONS.forEach(region => {
     converted[region] = {};
-    slots.forEach(slot => {
-      converted[region][slot.label] = 1.0;
+    ALL_HOURS.forEach(label => {
+      converted[region][label] = 1.0;
     });
   });
 
@@ -266,7 +276,7 @@ export default function TacticalDashboard() {
   const [selectedRegionName, setSelectedRegionName] = useState(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [dataSource, setDataSource] = useState({ kind: 'live', generatedAt: null });
+  const [dataSource, setDataSource] = useState({ kind: 'live', startsAt: null });
   const [showStats, setShowStats] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -283,8 +293,13 @@ export default function TacticalDashboard() {
     setCurrentTime(now);
   }, []);
 
-  // 24 slots from current hour
-  const timeSlots = useMemo(() => currentTime ? buildTimeSlots(currentTime) : [], [currentTime]);
+  // Live: 24 slots from the current hour. Snapshot: the forecast's own window.
+  const snapshotStart = dataSource.kind === 'snapshot' ? dataSource.startsAt : null;
+  const timeSlots = useMemo(() => {
+    const base = snapshotStart ? new Date(snapshotStart) : currentTime;
+    return base ? buildTimeSlots(base) : [];
+  }, [currentTime, snapshotStart]);
+  const isSnapshot = Boolean(snapshotStart);
 
   const loadData = useCallback(async () => {
     if (!currentTime) return;
@@ -292,24 +307,24 @@ export default function TacticalDashboard() {
 
     try {
       if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set');
-      const { regions } = await fetchPredictions(API_URL, timeSlots);
+      const { regions } = await fetchPredictions(API_URL);
       setPredictionData(regions);
-      setDataSource({ kind: 'live', generatedAt: null });
+      setDataSource({ kind: 'live', startsAt: null });
     } catch (error) {
       console.warn("Live API недоступний, показую знімок прогнозу.", error);
       try {
-        const { regions, generatedAt } = await fetchPredictions(SNAPSHOT_URL, timeSlots);
+        const { regions, generatedAt } = await fetchPredictions(SNAPSHOT_URL);
         setPredictionData(regions);
-        setDataSource({ kind: 'snapshot', generatedAt });
+        setDataSource({ kind: 'snapshot', startsAt: parseForecastHour(generatedAt)?.getTime() ?? null });
       } catch (snapshotError) {
         console.error("Знімок недоступний, вмикаю демо-режим.", snapshotError);
         setPredictionData(generateMockPredictions(currentTime));
-        setDataSource({ kind: 'mock', generatedAt: null });
+        setDataSource({ kind: 'mock', startsAt: null });
       }
     } finally {
       setIsRefreshing(false);
     }
-  }, [currentTime, timeSlots]);
+  }, [currentTime]);
 
   useEffect(() => {
     if (currentTime) loadData();
@@ -464,7 +479,7 @@ export default function TacticalDashboard() {
               )}
               {dataSource.kind === 'snapshot' && (
                 <span className="text-[10px] text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
-                  Знімок прогнозу{dataSource.generatedAt ? ` · ${new Date(dataSource.generatedAt.replace(' ', 'T')).toLocaleDateString('uk-UA')}` : ''}
+                  Знімок прогнозу{isSnapshot ? ` · ${new Date(snapshotStart).toLocaleDateString('uk-UA')}, ${timeSlots[0]?.label}` : ''}
                 </span>
               )}
               {dataSource.kind === 'mock' && (
@@ -484,7 +499,10 @@ export default function TacticalDashboard() {
             <Clock size={15} className="text-blue-400 shrink-0" />
             <div className="flex flex-col">
               <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold hidden md:block">Перегляд</span>
-              <span className="font-mono text-sm md:text-base tracking-wider text-white font-semibold">{selectedTimeStr}</span>
+              <span className="font-mono text-sm md:text-base tracking-wider text-white font-semibold">
+                {selectedTimeStr}
+                {isSnapshot && selectedSlot && <span className="text-slate-400 font-normal ml-2">{fmtDay(selectedSlot.date)}</span>}
+              </span>
             </div>
           </div>
 
@@ -726,9 +744,11 @@ export default function TacticalDashboard() {
           className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl md:rounded-3xl p-4 md:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
         >
           <div className="flex justify-between text-[10px] font-mono text-slate-400 mb-2 uppercase tracking-widest">
-            <span className="text-blue-400">{timeSlots[0]?.label} (зараз)</span>
+            <span className="text-blue-400">
+              {timeSlots[0]?.label} {isSnapshot && timeSlots[0] ? `· ${fmtDay(timeSlots[0].date)}` : '(зараз)'}
+            </span>
             <span>+12 год</span>
-            <span>{timeSlots[23]?.label} (+24 год)</span>
+            <span>{timeSlots[23]?.label} {isSnapshot && timeSlots[23] ? `· ${fmtDay(timeSlots[23].date)}` : '(+24 год)'}</span>
           </div>
 
           {/* Intensity bars */}
