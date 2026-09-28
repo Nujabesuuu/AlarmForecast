@@ -12,6 +12,11 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![AWS EC2](https://img.shields.io/badge/AWS-EC2-FF9900?logo=amazonaws&logoColor=white)
 
+
+
+https://github.com/user-attachments/assets/bf009773-a40a-4fac-9270-014f4c958e40
+
+
 <img src="docs/media/preview.gif" alt="The forecast map lighting up region by region, then scrubbing through 24 hours" width="100%">
 
 [**Live demo**](https://alarm-forecast.vercel.app) · [Watch the video](docs/media/demo.mp4) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Run locally](#getting-started)
